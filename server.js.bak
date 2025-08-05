@@ -1,0 +1,626 @@
+const express = require('express');
+const mysql = require('mysql2');
+const bcrypt = require('bcrypt');
+const session = require('express-session');
+const bodyParser = require('body-parser');
+const path = require('path');
+
+const app = express();
+const PORT = 3000;
+
+// Create a connection pool with promise wrapper directly
+const db = mysql.createPool({
+  host: 'localhost',
+  user: 'root',
+  password: 'sunshine',
+  database: 'together_culture',
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0,
+  Promise: Promise // Use native promises
+}).promise();
+
+// Middleware
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(express.static('public'));
+app.use(session({
+  secret: 'together_culture_secret',
+  resave: false,
+  saveUninitialized: false,
+  cookie: { secure: false }
+}));
+
+// Authentication middleware
+const requireAuth = (req, res, next) => {
+  if (req.session.userId) {
+    next();
+  } else {
+    res.status(401).json({ error: 'Unauthorized' });
+  }
+};
+
+// Routes
+// Login
+app.post('/login', async (req, res) => {
+  const { username, password } = req.body;
+  
+  // Input validation
+  if (!username || !password) {
+    return res.status(400).json({ error: 'Username and password are required' });
+  }
+  
+  try {
+    // Use the promise-based pool directly
+    const [results] = await db.query('SELECT * FROM users WHERE username = ?', [username]);
+    
+    if (!results || results.length === 0) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    
+    const user = results[0];
+    const isValid = await bcrypt.compare(password, user.password);
+    
+    if (!isValid) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    
+    // Set session data
+    req.session.userId = user.id;
+    req.session.userRole = user.role;
+    req.session.username = user.username;
+    
+    // Save the session
+    req.session.save(err => {
+      if (err) {
+        console.error('Session save error:', err);
+        return res.status(500).json({ error: 'Session error' });
+      }
+      
+      res.json({ 
+        success: true, 
+        role: user.role, 
+        username: user.username,
+        userId: user.id
+      });
+    });
+  } catch (error) {
+    console.error('Login error:', error);
+    
+    // Provide more detailed error information in development
+    const errorResponse = { 
+      error: 'Login failed',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    };
+    
+    res.status(500).json(errorResponse);
+  }
+});
+
+// Register
+app.post('/register', async (req, res) => {
+  const { username, password, email, fullName, role = 'member' } = req.body;
+  
+  // Get a connection from the pool
+  const connection = await pool.getConnection();
+  
+  try {
+    // Hash the password
+    const hashedPassword = await bcrypt.hash(password, 10);
+    
+    // Insert the new user
+    await connection.query(
+      'INSERT INTO users (username, password, email, full_name, role) VALUES (?, ?, ?, ?, ?)',
+      [username, hashedPassword, email, fullName, role]
+    );
+    
+    res.json({ 
+      success: true, 
+      message: 'User registered successfully',
+      role: role,
+      username: username
+    });
+  } catch (error) {
+    console.error('Registration error:', error);
+    
+    if (error.code === 'ER_DUP_ENTRY') {
+      return res.status(400).json({ error: 'Username or email already exists' });
+    }
+    
+    res.status(500).json({ 
+      error: 'Registration failed',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  } finally {
+    // Always release the connection back to the pool
+    if (connection) connection.release();
+  }
+});
+
+// Get user profile
+app.get('/profile', requireAuth, async (req, res) => {
+  // Get a connection from the pool
+  const connection = await db.getConnection();
+  
+  try {
+    // Get user profile
+    const [results] = await connection.query(
+      'SELECT id, username, email, full_name, role FROM users WHERE id = ?',
+      [req.session.userId]
+    );
+    
+    if (results.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    res.json(results[0]);
+  } catch (error) {
+    console.error('Error fetching profile:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch profile',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  } finally {
+    // Always release the connection back to the pool
+    if (connection) connection.release();
+  }
+});
+
+// Update profile
+app.put('/profile', requireAuth, async (req, res) => {
+  const { email, fullName } = req.body;
+  
+  // Validate input
+  if (!email || !fullName) {
+    return res.status(400).json({ error: 'Email and full name are required' });
+  }
+  
+  // Get a connection from the pool
+  const connection = await pool.getConnection();
+  
+  try {
+    // Update user profile
+    await connection.query(
+      'UPDATE users SET email = ?, full_name = ? WHERE id = ?',
+      [email, fullName, req.session.userId]
+    );
+    
+    res.json({ 
+      success: true, 
+      message: 'Profile updated successfully',
+      user: { email, fullName }
+    });
+  } catch (error) {
+    console.error('Error updating profile:', error);
+    
+    if (error.code === 'ER_DUP_ENTRY') {
+      return res.status(400).json({ error: 'Email already in use' });
+    }
+    
+    res.status(500).json({ 
+      error: 'Failed to update profile',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  } finally {
+    // Always release the connection back to the pool
+    if (connection) connection.release();
+  }
+});
+
+// Get all activities with creator information
+app.get('/activities', requireAuth, async (req, res) => {
+  try {
+    // Get all activities with creator information using the promise-based pool
+    const [activities] = await db.query(`
+      SELECT a.*, u.username as creator_username, u.full_name as creator_name 
+      FROM activities a
+      JOIN users u ON a.created_by = u.id
+      ORDER BY a.created_at DESC
+    `);
+    
+    res.json(activities);
+  } catch (error) {
+    console.error('Error fetching activities:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch activities',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// Add new activity
+app.post('/activities', requireAuth, async (req, res) => {
+  const { title, description, date, location } = req.body;
+  
+  // Get a connection from the pool
+  const connection = await db.getConnection();
+  
+  try {
+    // Start a transaction
+    await connection.beginTransaction();
+    
+    try {
+      // First, insert the activity
+      const [activityResult] = await connection.query(
+        'INSERT INTO activities (title, description, date, location, created_by) VALUES (?, ?, ?, ?, ?)',
+        [title, description, date, location, req.session.userId]
+      );
+      
+      // Then, create the user_activity relationship for the creator
+      await connection.query(
+        'INSERT INTO user_activities (user_id, activity_id) VALUES (?, ?)',
+        [req.session.userId, activityResult.insertId]
+      );
+      
+      // Commit the transaction
+      await connection.commit();
+      
+      res.json({ success: true, id: activityResult.insertId });
+    } catch (error) {
+      // Rollback in case of error
+      await connection.rollback();
+      throw error; // Re-throw to be caught by the outer catch
+    }
+  } catch (error) {
+    console.error('Error creating activity:', error);
+    res.status(500).json({ error: 'Failed to create activity: ' + error.message });
+  } finally {
+    // Always release the connection back to the pool
+    connection.release();
+  }
+});
+
+// Update activity
+app.put('/activities/:id', requireAuth, async (req, res) => {
+  const { title, description, date, location } = req.body;
+  const activityId = req.params.id;
+  
+  // Get a connection from the pool
+  const connection = await pool.getConnection();
+  
+  try {
+    // Start a transaction
+    await connection.beginTransaction();
+    
+    try {
+      // First, check if the activity exists and get the creator
+      const [activityResults] = await connection.query(
+        'SELECT created_by FROM activities WHERE id = ? FOR UPDATE',
+        [activityId]
+      );
+      
+      if (activityResults.length === 0) {
+        return res.status(404).json({ error: 'Activity not found' });
+      }
+      
+      const activity = activityResults[0];
+      
+      // Check if user is admin or the creator of the activity
+      if (req.session.userRole !== 'admin' && activity.created_by !== req.session.userId) {
+        return res.status(403).json({ error: 'You do not have permission to edit this activity' });
+      }
+      
+      // User has permission, proceed with update
+      await connection.query(
+        'UPDATE activities SET title = ?, description = ?, date = ?, location = ? WHERE id = ?',
+        [title, description, date, location, activityId]
+      );
+      
+      // Commit the transaction
+      await connection.commit();
+      
+      res.json({ 
+        success: true, 
+        message: 'Activity updated successfully',
+        activity: { id: activityId, title, description, date, location }
+      });
+    } catch (error) {
+      // Rollback in case of error
+      await connection.rollback();
+      throw error; // Re-throw to be caught by the outer catch
+    }
+  } catch (error) {
+    console.error('Error updating activity:', error);
+    const statusCode = error.statusCode || 500;
+    res.status(statusCode).json({ 
+      error: 'Failed to update activity',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  } finally {
+    // Always release the connection back to the pool
+    if (connection) connection.release();
+  }
+});
+
+// Delete activity
+app.delete('/activities/:id', requireAuth, async (req, res) => {
+  const activityId = req.params.id;
+  
+  // Get a connection from the promise-based pool
+  const connection = await db.getConnection();
+  
+  try {
+    // Start a transaction
+    await connection.beginTransaction();
+    
+    try {
+      // First, check if the activity exists and get the creator
+      const [activityResults] = await connection.query(
+        'SELECT created_by FROM activities WHERE id = ? FOR UPDATE',
+        [activityId]
+      );
+      
+      if (activityResults.length === 0) {
+        return res.status(404).json({ error: 'Activity not found' });
+      }
+      
+      const activity = activityResults[0];
+      
+      // Check if user is admin or the creator of the activity
+      if (req.session.userRole !== 'admin' && activity.created_by !== req.session.userId) {
+        return res.status(403).json({ error: 'You do not have permission to delete this activity' });
+      }
+      
+      // First delete from user_activities
+      await connection.query('DELETE FROM user_activities WHERE activity_id = ?', [activityId]);
+      
+      // Then delete the activity
+      await connection.query('DELETE FROM activities WHERE id = ?', [activityId]);
+      
+      // Commit the transaction
+      await connection.commit();
+      
+      res.json({ success: true, message: 'Activity deleted successfully' });
+    } catch (error) {
+      // Rollback in case of error
+      await connection.rollback();
+      throw error; // Re-throw to be caught by the outer catch
+    }
+  } catch (error) {
+    console.error('Error deleting activity:', error);
+    res.status(500).json({ 
+      error: 'Failed to delete activity',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  } finally {
+    // Always release the connection back to the pool
+    if (connection) connection.release();
+  }
+});
+
+// Admin: Search members (admin only)
+app.get('/admin/members/search', requireAuth, async (req, res) => {
+  if (req.session.userRole !== 'admin') {
+    return res.status(403).json({ error: 'Access denied' });
+  }
+  
+  const { query } = req.query;
+  
+  if (!query || query.trim() === '') {
+    return res.status(400).json({ error: 'Search query is required' });
+  }
+  
+  // Get a connection from the pool
+  const connection = await pool.getConnection();
+  
+  try {
+    const searchTerm = `%${query}%`;
+    
+    // Search for members with activity count
+    const [results] = await connection.query(
+      `SELECT 
+        u.id, 
+        u.username, 
+        u.full_name, 
+        u.email, 
+        u.role,
+        (
+          SELECT COUNT(*) 
+          FROM user_activities 
+          WHERE user_id = u.id
+        ) as activity_count,
+        u.created_at as member_since
+      FROM users u 
+      WHERE u.username LIKE ? 
+        OR u.full_name LIKE ? 
+        OR u.email LIKE ?
+      ORDER BY u.created_at DESC`,
+      [searchTerm, searchTerm, searchTerm]
+    );
+    
+    res.json(results);
+  } catch (error) {
+    console.error('Error searching members:', error);
+    res.status(500).json({ 
+      error: 'Failed to search members',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  } finally {
+    // Always release the connection back to the pool
+    if (connection) connection.release();
+  }
+});
+
+// Admin: Get member activities
+app.get('/admin/members/:id/activities', requireAuth, async (req, res) => {
+  if (req.session.userRole !== 'admin') {
+    return res.status(403).json({ error: 'Access denied' });
+  }
+  
+  const memberId = req.params.id;
+  
+  // Get a connection from the pool
+  const connection = await pool.getConnection();
+  
+  try {
+    // First, verify the member exists
+    const [userResults] = await connection.query(
+      'SELECT id, username, full_name FROM users WHERE id = ?',
+      [memberId]
+    );
+    
+    if (userResults.length === 0) {
+      return res.status(404).json({ error: 'Member not found' });
+    }
+    
+    const member = userResults[0];
+    
+    // Get the member's activities with additional details
+    const [activities] = await connection.query(
+      `SELECT 
+        a.*, 
+        ua.joined_at,
+        (
+          SELECT COUNT(*) 
+          FROM user_activities 
+          WHERE activity_id = a.id
+        ) as participant_count,
+        (
+          SELECT full_name 
+          FROM users 
+          WHERE id = a.created_by
+        ) as creator_name
+      FROM activities a 
+      JOIN user_activities ua ON a.id = ua.activity_id 
+      WHERE ua.user_id = ?
+      ORDER BY a.date DESC, ua.joined_at DESC`,
+      [memberId]
+    );
+    
+    res.json({
+      member: {
+        id: member.id,
+        username: member.username,
+        full_name: member.full_name,
+        activity_count: activities.length
+      },
+      activities
+    });
+  } catch (error) {
+    console.error('Error fetching member activities:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch member activities',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  } finally {
+    // Always release the connection back to the pool
+    if (connection) connection.release();
+  }
+});
+
+// Join activity
+app.post('/activities/:id/join', requireAuth, async (req, res) => {
+  const activityId = req.params.id;
+  const userId = req.session.userId;
+  
+  // Get a connection from the pool
+  const connection = await pool.getConnection();
+  
+  try {
+    // Start a transaction
+    await connection.beginTransaction();
+    
+    try {
+      // First, verify the activity exists and is active
+      const [activityResults] = await connection.query(
+        'SELECT id, date FROM activities WHERE id = ?',
+        [activityId]
+      );
+      
+      if (activityResults.length === 0) {
+        return res.status(404).json({ error: 'Activity not found' });
+      }
+      
+      const activity = activityResults[0];
+      
+      // Check if the activity is in the past
+      const activityDate = new Date(activity.date);
+      const now = new Date();
+      
+      if (activityDate < now) {
+        return res.status(400).json({ error: 'Cannot join a past activity' });
+      }
+      
+      // Check if user has already joined this activity
+      const [existingJoin] = await connection.query(
+        'SELECT id FROM user_activities WHERE user_id = ? AND activity_id = ?',
+        [userId, activityId]
+      );
+      
+      if (existingJoin.length > 0) {
+        return res.status(400).json({ error: 'You have already joined this activity' });
+      }
+      
+      // Add user to activity
+      await connection.query(
+        'INSERT INTO user_activities (user_id, activity_id, joined_at) VALUES (?, ?, NOW())',
+        [userId, activityId]
+      );
+      
+      // Get updated participant count
+      const [countResult] = await connection.query(
+        'SELECT COUNT(*) as count FROM user_activities WHERE activity_id = ?',
+        [activityId]
+      );
+      
+      // Commit the transaction
+      await connection.commit();
+      
+      res.json({ 
+        success: true, 
+        message: 'Successfully joined activity',
+        participantCount: countResult[0].count
+      });
+    } catch (error) {
+      // Rollback in case of error
+      await connection.rollback();
+      throw error; // Re-throw to be caught by the outer catch
+    }
+  } catch (error) {
+    console.error('Error joining activity:', error);
+    
+    if (error.code === 'ER_DUP_ENTRY') {
+      return res.status(400).json({ error: 'You have already joined this activity' });
+    }
+    
+    res.status(500).json({ 
+      error: 'Failed to join activity',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  } finally {
+    // Always release the connection back to the pool
+    if (connection) connection.release();
+  }
+});
+
+// Logout
+app.post('/logout', (req, res) => {
+  // Destroy the session
+  req.session.destroy(err => {
+    if (err) {
+      console.error('Error destroying session during logout:', err);
+      return res.status(500).json({ 
+        success: false, 
+        error: 'Failed to log out',
+        details: process.env.NODE_ENV === 'development' ? err.message : undefined
+      });
+    }
+    
+    // Clear the session cookie
+    res.clearCookie('connect.sid');
+    
+    res.json({ 
+      success: true, 
+      message: 'Successfully logged out' 
+    });
+  });
+});
+
+// Serve static files
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+app.listen(PORT, () => {
+  console.log(`Server running on http://localhost:${PORT}`);
+});

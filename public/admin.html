@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - Together Culture</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="dashboard-container">
+        <nav class="sidebar">
+            <div class="logo-container">
+                <div class="logo">
+                    <div class="logo-icon">🌍</div>
+                    <h2>Together Culture</h2>
+                </div>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="dashboard.html" class="nav-link">Dashboard</a></li>
+                <li><a href="#" onclick="showSection('search')" class="nav-link active">Member Search</a></li>
+                <li><a href="#" onclick="logout()" class="nav-link">Logout</a></li>
+            </ul>
+        </nav>
+
+        <main class="main-dashboard">
+            <header class="dashboard-header">
+                <h1>Admin Panel</h1>
+                <div class="user-info">
+                    <span class="role-badge admin">Administrator</span>
+                </div>
+            </header>
+
+            <!-- Member Search Section -->
+            <section id="searchSection" class="dashboard-section">
+                <div class="section-header">
+                    <h2>Member Management</h2>
+                </div>
+                
+                <div class="search-container">
+                    <div class="search-box">
+                        <input type="text" id="memberSearch" placeholder="Search members by name, username, or email...">
+                        <button class="btn-primary" onclick="searchMembers()">Search</button>
+                    </div>
+                </div>
+
+                <div id="searchResults" class="search-results">
+                    <!-- Search results will appear here -->
+                </div>
+
+                <div id="memberDetails" class="member-details" style="display: none;">
+                    <div class="member-info-card">
+                        <h3 id="memberName"></h3>
+                        <p><strong>Username:</strong> <span id="memberUsername"></span></p>
+                        <p><strong>Email:</strong> <span id="memberEmail"></span></p>
+                        <p><strong>Role:</strong> <span id="memberRole"></span></p>
+                        <p><strong>Total Activities:</strong> <span id="memberActivityCount"></span></p>
+                    </div>
+
+                    <div class="member-activities">
+                        <h4>Member Activities & Visits</h4>
+                        <div id="memberActivitiesList">
+                            <!-- Member activities will be loaded here -->
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        // Check admin authentication
+        document.addEventListener('DOMContentLoaded', function() {
+            checkAdminAuth();
+        });
+
+        function checkAdminAuth() {
+            // This would normally check session/token
+            // For demo, we'll assume user is authenticated if they reach this page
+        }
+
+        function searchMembers() {
+            const query = document.getElementById('memberSearch').value.trim();
+            
+            if (!query) {
+                alert('Please enter a search term');
+                return;
+            }
+
+            fetch(`/admin/members/search?query=${encodeURIComponent(query)}`)
+                .then(response => response.json())
+                .then(data => {
+                    displaySearchResults(data);
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error searching members');
+                });
+        }
+
+        function displaySearchResults(members) {
+            const resultsContainer = document.getElementById('searchResults');
+            
+            if (members.length === 0) {
+                resultsContainer.innerHTML = '<p class="no-results">No members found matching your search.</p>';
+                return;
+            }
+
+            const resultsHTML = members.map(member => `
+                <div class="search-result-item" onclick="viewMemberDetails(${member.id})">
+                    <div class="member-summary">
+                        <h4>${member.full_name}</h4>
+                        <p><strong>@${member.username}</strong> • ${member.email}</p>
+                        <span class="role-badge ${member.role}">${member.role}</span>
+                        <span class="activity-count">${member.activity_count} activities</span>
+                    </div>
+                </div>
+            `).join('');
+
+            resultsContainer.innerHTML = `
+                <h3>Search Results (${members.length} found)</h3>
+                ${resultsHTML}
+            `;
+        }
+
+        function viewMemberDetails(memberId) {
+            // Fetch member activities
+            fetch(`/admin/members/${memberId}/activities`)
+                .then(response => response.json())
+                .then(activities => {
+                    displayMemberDetails(memberId, activities);
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error loading member details');
+                });
+        }
+
+        function displayMemberDetails(memberId, activities) {
+            // Find member info from search results
+            const memberElements = document.querySelectorAll('.search-result-item');
+            let memberData = null;
+            
+            memberElements.forEach(element => {
+                if (element.onclick.toString().includes(memberId)) {
+                    const summary = element.querySelector('.member-summary');
+                    const name = summary.querySelector('h4').textContent;
+                    const userInfo = summary.querySelector('p').textContent.split(' • ');
+                    const username = userInfo[0].replace('@', '');
+                    const email = userInfo[1];
+                    const role = summary.querySelector('.role-badge').textContent;
+                    const activityCount = summary.querySelector('.activity-count').textContent.split(' ')[0];
+                    
+                    memberData = { name, username, email, role, activityCount };
+                }
+            });
+
+            if (!memberData) return;
+
+            // Populate member details
+            document.getElementById('memberName').textContent = memberData.name;
+            document.getElementById('memberUsername').textContent = memberData.username;
+            document.getElementById('memberEmail').textContent = memberData.email;
+            document.getElementById('memberRole').textContent = memberData.role;
+            document.getElementById('memberActivityCount').textContent = memberData.activityCount;
+
+            // Display activities
+            const activitiesHTML = activities.length > 0 ? 
+                activities.map(activity => `
+                    <div class="activity-item">
+                        <h5>${activity.title}</h5>
+                        <p>${activity.description}</p>
+                        <div class="activity-meta">
+                            <span>📅 ${new Date(activity.date).toLocaleDateString()}</span>
+                            <span>📍 ${activity.location}</span>
+                            <span>🕒 Joined: ${new Date(activity.joined_at).toLocaleDateString()}</span>
+                        </div>
+                    </div>
+                `).join('') :
+                '<p class="no-activities">This member hasn\'t joined any activities yet.</p>';
+
+            document.getElementById('memberActivitiesList').innerHTML = activitiesHTML;
+            document.getElementById('memberDetails').style.display = 'block';
+            
+            // Scroll to details
+            document.getElementById('memberDetails').scrollIntoView({ behavior: 'smooth' });
+        }
+    </script>
+    <script src="script.js"></script>
+</body>
+</html>

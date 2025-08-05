@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Together Culture - Unite Through Diversity</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="logo-container">
+                <div class="logo">
+                    <div class="logo-icon">🌍</div>
+                    <h1>Together Culture</h1>
+                </div>
+                <p class="tagline">Unite Through Diversity</p>
+            </div>
+        </header>
+
+        <main class="main-content">
+            <div class="auth-container">
+                <div class="auth-tabs">
+                    <button class="tab-btn active" onclick="showLogin()">Login</button>
+                    <button class="tab-btn" onclick="showRegister()">Register</button>
+                </div>
+
+                <!-- Login Form -->
+                <div id="loginForm" class="auth-form">
+                    <h2>Welcome Back</h2>
+                    <form id="loginFormElement">
+                        <div class="input-group">
+                            <label for="loginUsername">Username</label>
+                            <input type="text" id="loginUsername" name="username" required>
+                        </div>
+                        <div class="input-group">
+                            <label for="loginPassword">Password</label>
+                            <input type="password" id="loginPassword" name="password" required>
+                        </div>
+                        <button type="submit" class="btn-primary">Login</button>
+                    </form>
+                    <div class="demo-credentials">
+                        <p><strong>Demo Admin:</strong> admin / admin123</p>
+                    </div>
+                </div>
+
+                <!-- Register Form -->
+                <div id="registerForm" class="auth-form" style="display: none;">
+                    <h2>Join Our Community</h2>
+                    <form id="registerFormElement">
+                        <div class="input-group">
+                            <label for="regUsername">Username</label>
+                            <input type="text" id="regUsername" name="username" required>
+                        </div>
+                        <div class="input-group">
+                            <label for="regEmail">Email</label>
+                            <input type="email" id="regEmail" name="email" required>
+                        </div>
+                        <div class="input-group">
+                            <label for="regFullName">Full Name</label>
+                            <input type="text" id="regFullName" name="fullName" required>
+                        </div>
+                        <div class="input-group">
+                            <label for="regPassword">Password</label>
+                            <input type="password" id="regPassword" name="password" required>
+                        </div>
+                        <div class="input-group">
+                            <label for="regRole">Role</label>
+                            <select id="regRole" name="role">
+                                <option value="member">Member</option>
+                                <option value="moderator">Moderator</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="btn-primary">Register</button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="features-section">
+                <h3>What We Offer</h3>
+                <div class="features-grid">
+                    <div class="feature-card">
+                        <div class="feature-icon">👥</div>
+                        <h4>Community Events</h4>
+                        <p>Join cultural activities and meet people from diverse backgrounds</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">🎨</div>
+                        <h4>Cultural Exchange</h4>
+                        <p>Share and learn about different cultures through workshops and exhibitions</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">🤝</div>
+                        <h4>Member Network</h4>
+                        <p>Connect with like-minded individuals who value diversity and inclusion</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <footer class="footer">
+            <p>&copy; 2024 Together Culture. Building bridges across cultures.</p>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

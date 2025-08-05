@@ -1,0 +1,626 @@
+1:const express = require('express');
+2:const mysql = require('mysql2');
+3:const bcrypt = require('bcrypt');
+4:const session = require('express-session');
+5:const bodyParser = require('body-parser');
+6:const path = require('path');
+7:
+8:const app = express();
+9:const PORT = 3000;
+10:
+11:// Create a connection pool with promise wrapper directly
+12:const db = mysql.createPool({
+13:  host: 'localhost',
+14:  user: 'root',
+15:  password: 'sunshine',
+16:  database: 'together_culture',
+17:  waitForConnections: true,
+18:  connectionLimit: 10,
+19:  queueLimit: 0,
+20:  Promise: Promise // Use native promises
+21:}).promise();
+22:
+23:// Middleware
+24:app.use(bodyParser.json());
+25:app.use(bodyParser.urlencoded({ extended: true }));
+26:app.use(express.static('public'));
+27:app.use(session({
+28:  secret: 'together_culture_secret',
+29:  resave: false,
+30:  saveUninitialized: false,
+31:  cookie: { secure: false }
+32:}));
+33:
+34:// Authentication middleware
+35:const requireAuth = (req, res, next) => {
+36:  if (req.session.userId) {
+37:    next();
+38:  } else {
+39:    res.status(401).json({ error: 'Unauthorized' });
+40:  }
+41:};
+42:
+43:// Routes
+44:// Login
+45:app.post('/login', async (req, res) => {
+46:  const { username, password } = req.body;
+47:  
+48:  // Input validation
+49:  if (!username || !password) {
+50:    return res.status(400).json({ error: 'Username and password are required' });
+51:  }
+52:  
+53:  try {
+54:    // Use the promise-based pool directly
+55:    const [results] = await db.query('SELECT * FROM users WHERE username = ?', [username]);
+56:    
+57:    if (!results || results.length === 0) {
+58:      return res.status(401).json({ error: 'Invalid credentials' });
+59:    }
+60:    
+61:    const user = results[0];
+62:    const isValid = await bcrypt.compare(password, user.password);
+63:    
+64:    if (!isValid) {
+65:      return res.status(401).json({ error: 'Invalid credentials' });
+66:    }
+67:    
+68:    // Set session data
+69:    req.session.userId = user.id;
+70:    req.session.userRole = user.role;
+71:    req.session.username = user.username;
+72:    
+73:    // Save the session
+74:    req.session.save(err => {
+75:      if (err) {
+76:        console.error('Session save error:', err);
+77:        return res.status(500).json({ error: 'Session error' });
+78:      }
+79:      
+80:      res.json({ 
+81:        success: true, 
+82:        role: user.role, 
+83:        username: user.username,
+84:        userId: user.id
+85:      });
+86:    });
+87:  } catch (error) {
+88:    console.error('Login error:', error);
+89:    
+90:    // Provide more detailed error information in development
+91:    const errorResponse = { 
+92:      error: 'Login failed',
+93:      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+94:    };
+95:    
+96:    res.status(500).json(errorResponse);
+97:  }
+98:});
+99:
+100:// Register
+101:app.post('/register', async (req, res) => {
+102:  const { username, password, email, fullName, role = 'member' } = req.body;
+103:  
+104:  // Get a connection from the pool
+105:  const connection = await pool.getConnection();
+106:  
+107:  try {
+108:    // Hash the password
+109:    const hashedPassword = await bcrypt.hash(password, 10);
+110:    
+111:    // Insert the new user
+112:    await connection.query(
+113:      'INSERT INTO users (username, password, email, full_name, role) VALUES (?, ?, ?, ?, ?)',
+114:      [username, hashedPassword, email, fullName, role]
+115:    );
+116:    
+117:    res.json({ 
+118:      success: true, 
+119:      message: 'User registered successfully',
+120:      role: role,
+121:      username: username
+122:    });
+123:  } catch (error) {
+124:    console.error('Registration error:', error);
+125:    
+126:    if (error.code === 'ER_DUP_ENTRY') {
+127:      return res.status(400).json({ error: 'Username or email already exists' });
+128:    }
+129:    
+130:    res.status(500).json({ 
+131:      error: 'Registration failed',
+132:      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+133:    });
+134:  } finally {
+135:    // Always release the connection back to the pool
+136:    if (connection) connection.release();
+137:  }
+138:});
+139:
+140:// Get user profile
+141:app.get('/profile', requireAuth, async (req, res) => {
+142:  // Get a connection from the pool
+143:  const connection = await db.getConnection();
+144:  
+145:  try {
+146:    // Get user profile
+147:    const [results] = await connection.query(
+148:      'SELECT id, username, email, full_name, role FROM users WHERE id = ?',
+149:      [req.session.userId]
+150:    );
+151:    
+152:    if (results.length === 0) {
+153:      return res.status(404).json({ error: 'User not found' });
+154:    }
+155:    
+156:    res.json(results[0]);
+157:  } catch (error) {
+158:    console.error('Error fetching profile:', error);
+159:    res.status(500).json({ 
+160:      error: 'Failed to fetch profile',
+161:      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+162:    });
+163:  } finally {
+164:    // Always release the connection back to the pool
+165:    if (connection) connection.release();
+166:  }
+167:});
+168:
+169:// Update profile
+170:app.put('/profile', requireAuth, async (req, res) => {
+171:  const { email, fullName } = req.body;
+172:  
+173:  // Validate input
+174:  if (!email || !fullName) {
+175:    return res.status(400).json({ error: 'Email and full name are required' });
+176:  }
+177:  
+178:  // Get a connection from the pool
+179:  const connection = await pool.getConnection();
+180:  
+181:  try {
+182:    // Update user profile
+183:    await connection.query(
+184:      'UPDATE users SET email = ?, full_name = ? WHERE id = ?',
+185:      [email, fullName, req.session.userId]
+186:    );
+187:    
+188:    res.json({ 
+189:      success: true, 
+190:      message: 'Profile updated successfully',
+191:      user: { email, fullName }
+192:    });
+193:  } catch (error) {
+194:    console.error('Error updating profile:', error);
+195:    
+196:    if (error.code === 'ER_DUP_ENTRY') {
+197:      return res.status(400).json({ error: 'Email already in use' });
+198:    }
+199:    
+200:    res.status(500).json({ 
+201:      error: 'Failed to update profile',
+202:      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+203:    });
+204:  } finally {
+205:    // Always release the connection back to the pool
+206:    if (connection) connection.release();
+207:  }
+208:});
+209:
+210:// Get all activities with creator information
+211:app.get('/activities', requireAuth, async (req, res) => {
+212:  try {
+213:    // Get all activities with creator information using the promise-based pool
+214:    const [activities] = await db.query(`
+215:      SELECT a.*, u.username as creator_username, u.full_name as creator_name 
+216:      FROM activities a
+217:      JOIN users u ON a.created_by = u.id
+218:      ORDER BY a.created_at DESC
+219:    `);
+220:    
+221:    res.json(activities);
+222:  } catch (error) {
+223:    console.error('Error fetching activities:', error);
+224:    res.status(500).json({ 
+225:      error: 'Failed to fetch activities',
+226:      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+227:    });
+228:  }
+229:});
+230:
+231:// Add new activity
+232:app.post('/activities', requireAuth, async (req, res) => {
+233:  const { title, description, date, location } = req.body;
+234:  
+235:  // Get a connection from the pool
+236:  const connection = await db.getConnection();
+237:  
+238:  try {
+239:    // Start a transaction
+240:    await connection.beginTransaction();
+241:    
+242:    try {
+243:      // First, insert the activity
+244:      const [activityResult] = await connection.query(
+245:        'INSERT INTO activities (title, description, date, location, created_by) VALUES (?, ?, ?, ?, ?)',
+246:        [title, description, date, location, req.session.userId]
+247:      );
+248:      
+249:      // Then, create the user_activity relationship for the creator
+250:      await connection.query(
+251:        'INSERT INTO user_activities (user_id, activity_id) VALUES (?, ?)',
+252:        [req.session.userId, activityResult.insertId]
+253:      );
+254:      
+255:      // Commit the transaction
+256:      await connection.commit();
+257:      
+258:      res.json({ success: true, id: activityResult.insertId });
+259:    } catch (error) {
+260:      // Rollback in case of error
+261:      await connection.rollback();
+262:      throw error; // Re-throw to be caught by the outer catch
+263:    }
+264:  } catch (error) {
+265:    console.error('Error creating activity:', error);
+266:    res.status(500).json({ error: 'Failed to create activity: ' + error.message });
+267:  } finally {
+268:    // Always release the connection back to the pool
+269:    connection.release();
+270:  }
+271:});
+272:
+273:// Update activity
+274:app.put('/activities/:id', requireAuth, async (req, res) => {
+275:  const { title, description, date, location } = req.body;
+276:  const activityId = req.params.id;
+277:  
+278:  // Get a connection from the pool
+279:  const connection = await pool.getConnection();
+280:  
+281:  try {
+282:    // Start a transaction
+283:    await connection.beginTransaction();
+284:    
+285:    try {
+286:      // First, check if the activity exists and get the creator
+287:      const [activityResults] = await connection.query(
+288:        'SELECT created_by FROM activities WHERE id = ? FOR UPDATE',
+289:        [activityId]
+290:      );
+291:      
+292:      if (activityResults.length === 0) {
+293:        return res.status(404).json({ error: 'Activity not found' });
+294:      }
+295:      
+296:      const activity = activityResults[0];
+297:      
+298:      // Check if user is admin or the creator of the activity
+299:      if (req.session.userRole !== 'admin' && activity.created_by !== req.session.userId) {
+300:        return res.status(403).json({ error: 'You do not have permission to edit this activity' });
+301:      }
+302:      
+303:      // User has permission, proceed with update
+304:      await connection.query(
+305:        'UPDATE activities SET title = ?, description = ?, date = ?, location = ? WHERE id = ?',
+306:        [title, description, date, location, activityId]
+307:      );
+308:      
+309:      // Commit the transaction
+310:      await connection.commit();
+311:      
+312:      res.json({ 
+313:        success: true, 
+314:        message: 'Activity updated successfully',
+315:        activity: { id: activityId, title, description, date, location }
+316:      });
+317:    } catch (error) {
+318:      // Rollback in case of error
+319:      await connection.rollback();
+320:      throw error; // Re-throw to be caught by the outer catch
+321:    }
+322:  } catch (error) {
+323:    console.error('Error updating activity:', error);
+324:    const statusCode = error.statusCode || 500;
+325:    res.status(statusCode).json({ 
+326:      error: 'Failed to update activity',
+327:      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+328:    });
+329:  } finally {
+330:    // Always release the connection back to the pool
+331:    if (connection) connection.release();
+332:  }
+333:});
+334:
+335:// Delete activity
+336:app.delete('/activities/:id', requireAuth, async (req, res) => {
+337:  const activityId = req.params.id;
+338:  
+339:  // Get a connection from the promise-based pool
+340:  const connection = await db.getConnection();
+341:  
+342:  try {
+343:    // Start a transaction
+344:    await connection.beginTransaction();
+345:    
+346:    try {
+347:      // First, check if the activity exists and get the creator
+348:      const [activityResults] = await connection.query(
+349:        'SELECT created_by FROM activities WHERE id = ? FOR UPDATE',
+350:        [activityId]
+351:      );
+352:      
+353:      if (activityResults.length === 0) {
+354:        return res.status(404).json({ error: 'Activity not found' });
+355:      }
+356:      
+357:      const activity = activityResults[0];
+358:      
+359:      // Check if user is admin or the creator of the activity
+360:      if (req.session.userRole !== 'admin' && activity.created_by !== req.session.userId) {
+361:        return res.status(403).json({ error: 'You do not have permission to delete this activity' });
+362:      }
+363:      
+364:      // First delete from user_activities
+365:      await connection.query('DELETE FROM user_activities WHERE activity_id = ?', [activityId]);
+366:      
+367:      // Then delete the activity
+368:      await connection.query('DELETE FROM activities WHERE id = ?', [activityId]);
+369:      
+370:      // Commit the transaction
+371:      await connection.commit();
+372:      
+373:      res.json({ success: true, message: 'Activity deleted successfully' });
+374:    } catch (error) {
+375:      // Rollback in case of error
+376:      await connection.rollback();
+377:      throw error; // Re-throw to be caught by the outer catch
+378:    }
+379:  } catch (error) {
+380:    console.error('Error deleting activity:', error);
+381:    res.status(500).json({ 
+382:      error: 'Failed to delete activity',
+383:      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+384:    });
+385:  } finally {
+386:    // Always release the connection back to the pool
+387:    if (connection) connection.release();
+388:  }
+389:});
+390:
+391:// Admin: Search members (admin only)
+392:app.get('/admin/members/search', requireAuth, async (req, res) => {
+393:  if (req.session.userRole !== 'admin') {
+394:    return res.status(403).json({ error: 'Access denied' });
+395:  }
+396:  
+397:  const { query } = req.query;
+398:  
+399:  if (!query || query.trim() === '') {
+400:    return res.status(400).json({ error: 'Search query is required' });
+401:  }
+402:  
+403:  // Get a connection from the pool
+404:  const connection = await pool.getConnection();
+405:  
+406:  try {
+407:    const searchTerm = `%${query}%`;
+408:    
+409:    // Search for members with activity count
+410:    const [results] = await connection.query(
+411:      `SELECT 
+412:        u.id, 
+413:        u.username, 
+414:        u.full_name, 
+415:        u.email, 
+416:        u.role,
+417:        (
+418:          SELECT COUNT(*) 
+419:          FROM user_activities 
+420:          WHERE user_id = u.id
+421:        ) as activity_count,
+422:        u.created_at as member_since
+423:      FROM users u 
+424:      WHERE u.username LIKE ? 
+425:        OR u.full_name LIKE ? 
+426:        OR u.email LIKE ?
+427:      ORDER BY u.created_at DESC`,
+428:      [searchTerm, searchTerm, searchTerm]
+429:    );
+430:    
+431:    res.json(results);
+432:  } catch (error) {
+433:    console.error('Error searching members:', error);
+434:    res.status(500).json({ 
+435:      error: 'Failed to search members',
+436:      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+437:    });
+438:  } finally {
+439:    // Always release the connection back to the pool
+440:    if (connection) connection.release();
+441:  }
+442:});
+443:
+444:// Admin: Get member activities
+445:app.get('/admin/members/:id/activities', requireAuth, async (req, res) => {
+446:  if (req.session.userRole !== 'admin') {
+447:    return res.status(403).json({ error: 'Access denied' });
+448:  }
+449:  
+450:  const memberId = req.params.id;
+451:  
+452:  // Get a connection from the pool
+453:  const connection = await pool.getConnection();
+454:  
+455:  try {
+456:    // First, verify the member exists
+457:    const [userResults] = await connection.query(
+458:      'SELECT id, username, full_name FROM users WHERE id = ?',
+459:      [memberId]
+460:    );
+461:    
+462:    if (userResults.length === 0) {
+463:      return res.status(404).json({ error: 'Member not found' });
+464:    }
+465:    
+466:    const member = userResults[0];
+467:    
+468:    // Get the member's activities with additional details
+469:    const [activities] = await connection.query(
+470:      `SELECT 
+471:        a.*, 
+472:        ua.joined_at,
+473:        (
+474:          SELECT COUNT(*) 
+475:          FROM user_activities 
+476:          WHERE activity_id = a.id
+477:        ) as participant_count,
+478:        (
+479:          SELECT full_name 
+480:          FROM users 
+481:          WHERE id = a.created_by
+482:        ) as creator_name
+483:      FROM activities a 
+484:      JOIN user_activities ua ON a.id = ua.activity_id 
+485:      WHERE ua.user_id = ?
+486:      ORDER BY a.date DESC, ua.joined_at DESC`,
+487:      [memberId]
+488:    );
+489:    
+490:    res.json({
+491:      member: {
+492:        id: member.id,
+493:        username: member.username,
+494:        full_name: member.full_name,
+495:        activity_count: activities.length
+496:      },
+497:      activities
+498:    });
+499:  } catch (error) {
+500:    console.error('Error fetching member activities:', error);
+501:    res.status(500).json({ 
+502:      error: 'Failed to fetch member activities',
+503:      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+504:    });
+505:  } finally {
+506:    // Always release the connection back to the pool
+507:    if (connection) connection.release();
+508:  }
+509:});
+510:
+511:// Join activity
+512:app.post('/activities/:id/join', requireAuth, async (req, res) => {
+513:  const activityId = req.params.id;
+514:  const userId = req.session.userId;
+515:  
+516:  // Get a connection from the pool
+517:  const connection = await pool.getConnection();
+518:  
+519:  try {
+520:    // Start a transaction
+521:    await connection.beginTransaction();
+522:    
+523:    try {
+524:      // First, verify the activity exists and is active
+525:      const [activityResults] = await connection.query(
+526:        'SELECT id, date FROM activities WHERE id = ?',
+527:        [activityId]
+528:      );
+529:      
+530:      if (activityResults.length === 0) {
+531:        return res.status(404).json({ error: 'Activity not found' });
+532:      }
+533:      
+534:      const activity = activityResults[0];
+535:      
+536:      // Check if the activity is in the past
+537:      const activityDate = new Date(activity.date);
+538:      const now = new Date();
+539:      
+540:      if (activityDate < now) {
+541:        return res.status(400).json({ error: 'Cannot join a past activity' });
+542:      }
+543:      
+544:      // Check if user has already joined this activity
+545:      const [existingJoin] = await connection.query(
+546:        'SELECT id FROM user_activities WHERE user_id = ? AND activity_id = ?',
+547:        [userId, activityId]
+548:      );
+549:      
+550:      if (existingJoin.length > 0) {
+551:        return res.status(400).json({ error: 'You have already joined this activity' });
+552:      }
+553:      
+554:      // Add user to activity
+555:      await connection.query(
+556:        'INSERT INTO user_activities (user_id, activity_id, joined_at) VALUES (?, ?, NOW())',
+557:        [userId, activityId]
+558:      );
+559:      
+560:      // Get updated participant count
+561:      const [countResult] = await connection.query(
+562:        'SELECT COUNT(*) as count FROM user_activities WHERE activity_id = ?',
+563:        [activityId]
+564:      );
+565:      
+566:      // Commit the transaction
+567:      await connection.commit();
+568:      
+569:      res.json({ 
+570:        success: true, 
+571:        message: 'Successfully joined activity',
+572:        participantCount: countResult[0].count
+573:      });
+574:    } catch (error) {
+575:      // Rollback in case of error
+576:      await connection.rollback();
+577:      throw error; // Re-throw to be caught by the outer catch
+578:    }
+579:  } catch (error) {
+580:    console.error('Error joining activity:', error);
+581:    
+582:    if (error.code === 'ER_DUP_ENTRY') {
+583:      return res.status(400).json({ error: 'You have already joined this activity' });
+584:    }
+585:    
+586:    res.status(500).json({ 
+587:      error: 'Failed to join activity',
+588:      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+589:    });
+590:  } finally {
+591:    // Always release the connection back to the pool
+592:    if (connection) connection.release();
+593:  }
+594:});
+595:
+596:// Logout
+597:app.post('/logout', (req, res) => {
+598:  // Destroy the session
+599:  req.session.destroy(err => {
+600:    if (err) {
+601:      console.error('Error destroying session during logout:', err);
+602:      return res.status(500).json({ 
+603:        success: false, 
+604:        error: 'Failed to log out',
+605:        details: process.env.NODE_ENV === 'development' ? err.message : undefined
+606:      });
+607:    }
+608:    
+609:    // Clear the session cookie
+610:    res.clearCookie('connect.sid');
+611:    
+612:    res.json({ 
+613:      success: true, 
+614:      message: 'Successfully logged out' 
+615:    });
+616:  });
+617:});
+618:
+619:// Serve static files
+620:app.get('/', (req, res) => {
+621:  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+622:});
+623:
+624:app.listen(PORT, () => {
+625:  console.log(`Server running on http://localhost:${PORT}`);
+626:});

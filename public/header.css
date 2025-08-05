@@ -1,0 +1,81 @@
+
+.header {
+    background-color: #00a4e0; /* Red background */
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 30px;
+  }
+  
+  /* Logo Section */
+  .logo {
+    font-size: 18px;
+    line-height: 1.2;
+  }
+  
+  .logo span {
+    display: inline;
+  }
+  
+  .logo .black-text {
+    color: gold;
+  }
+  
+  .logo .white-text {
+    color: white;
+    font-weight: bold;
+  }
+  
+  /* Navigation Menu */
+  .nav {
+    display: flex;
+    gap: 20px;
+  }
+  
+  .nav a {
+    text-decoration: none;
+    color: white;
+    font-size: 16px;
+    transition: 0.3s;
+  }
+  
+  .nav a:hover {
+    text-decoration: underline;
+  }
+  
+  /* Action Buttons */
+  .actions {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+  }
+  
+  .cart-icon {
+    font-size: 20px;
+    cursor: pointer;
+  }
+  
+  .join-btn {
+    background-color: black;
+    color: white;
+    padding: 8px 16px;
+    border-radius: 20px;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    transition: 0.3s;
+  }
+  
+  .join-btn:hover {
+    background-color: #333;
+  }
+  .footer {
+    text-align: center;
+    position: sticky;
+    top: 100%;
+    bottom:0% ;
+    width: 100%;
+    padding: 15px;
+    background: #00a4e0;
+    color: white;
+  }

@@ -1,0 +1,85 @@
+@import url('header.css');
+body {
+  font-family: "Poppins", sans-serif;
+  margin: 0;
+  padding: 0;
+  background-color: #fdf6ec;
+  color: #333;
+  min-width: 100%;
+}
+/* Responsive Design */
+@media (max-width: 768px) {
+  .nav {
+    display: none; /* Hide navigation on small screens */
+  }
+}
+.container {
+  max-width: 900px;
+  margin: 30px auto;
+  padding: 20px;
+  background: white;
+  border-radius: 10px;
+  box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
+}
+
+h1 {
+  color: #333;
+  font-size: 28px;
+}
+.membership-box {
+  background: #f8f8f8;
+  padding: 20px;
+  border-radius: 8px;
+  text-align: center;
+}
+.membership-box h2 {
+  color: #d22c2c;
+  font-size: 24px;
+}
+.membership-box p {
+  font-size: 20px;
+  font-weight: bold;
+}
+.cta-button {
+  display: inline-block;
+  background: #d22c2c;
+  color: white;
+  padding: 12px 25px;
+  text-decoration: none;
+  font-size: 18px;
+  border-radius: 5px;
+  font-weight: bold;
+  margin-top: 20px;
+  transition: background 0.3s;
+}
+.cta-button:hover {
+  background: #b12222;
+}
+
+.imagepage {
+  width: 100%;
+}
+#membership1 {
+  background: url("together2.jpg") no-repeat center center;
+  background-size: cover;
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: white;
+  font-size: 48px;
+  font-weight: bold;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+}
+#membership2 {
+  background-color: black;
+  background-size: cover;
+  height: 100vh;
+  /* display: flex;
+      justify-content: center; */
+  align-items: center;
+  color: white;
+  font-weight: bold;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+}
+/* Add a pseudo-element to blur only the background */

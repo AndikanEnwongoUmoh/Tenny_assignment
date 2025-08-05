@@ -1,0 +1,20 @@
+[2025-07-19T10:53:52.764Z] Starting check_activities.js script
+[2025-07-19T10:53:52.766Z] Starting check_activities.js script...
+[2025-07-19T10:53:52.766Z] Getting database connection from pool...
+[2025-07-19T10:53:52.910Z] Successfully obtained database connection
+[2025-07-19T10:53:52.911Z] Checking users...
+[2025-07-19T10:53:52.916Z] Users: [object Object],[object Object],[object Object],[object Object]
+[2025-07-19T10:53:52.916Z] 
+Checking activities...
+[2025-07-19T10:53:52.929Z] Activities: [object Object],[object Object],[object Object],[object Object],[object Object],[object Object]
+[2025-07-19T10:53:52.929Z] 
+Checking user_activities...
+[2025-07-19T10:53:52.935Z] User Activities: [object Object],[object Object],[object Object],[object Object],[object Object],[object Object]
+[2025-07-19T10:53:52.943Z] 
+Activities for user admin (admin): [object Object],[object Object],[object Object]
+[2025-07-19T10:53:52.950Z] 
+Activities for user pop (member): [object Object],[object Object]
+[2025-07-19T10:53:52.953Z] 
+Activities for user sola (moderator): [object Object]
+[2025-07-19T10:53:52.958Z] 
+Activities for user clark (member): 

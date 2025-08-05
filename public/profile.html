@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Profile</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <h1>User Profile</h1>
+        <div class="nav-links">
+            <a href="dashboard.html">Dashboard</a>
+            <a href="#" onclick="logout()">Logout</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="profile-section">
+            <h2>Profile Information</h2>
+            <div id="profileInfo"></div>
+        </div>
+
+        <div class="profile-section">
+            <h2>Update Profile</h2>
+            <form id="profileForm">
+                <div class="form-group">
+                    <label for="profileEmail">Email:</label>
+                    <input type="email" id="profileEmail" required>
+                </div>
+                <div class="form-group">
+                    <label for="profileUserType">User Type:</label>
+                    <select id="profileUserType" required>
+                        <option value="member">Member</option>
+                        <option value="viewer">Viewer</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary">Update Profile</button>
+            </form>
+        </div>
+
+        <div id="message" class="message"></div>
+    </div>
+
+    <script>
+        function showMessage(message, type = 'info') {
+            const messageDiv = document.getElementById('message');
+            messageDiv.textContent = message;
+            messageDiv.className = `message ${type}`;
+        }
+
+        async function logout() {
+            await fetch('/api/logout', { method: 'POST' });
+            window.location.href = 'index.html';
+        }
+
+        async function loadProfile() {
+            try {
+                const response = await fetch('/api/profile');
+                if (response.status === 401) {
+                    window.location.href = 'index.html';
+                    return;
+                }
+                
+                const profile = await response.json();
+                displayProfile(profile);
+                populateForm(profile);
+            } catch (error) {
+                showMessage('Error loading profile', 'error');
+            }
+        }
+
+        function displayProfile(profile) {
+            const container = document.getElementById('profileInfo');
+            container.innerHTML = `
+                <div class="profile-info-card">
+                    <p><strong>Username:</strong> ${profile.username}</p>
+                    <p><strong>Email:</strong> ${profile.email}</p>
+                    <p><strong>User Type:</strong> ${profile.user_type}</p>
+                    <p><strong>Member Since:</strong> ${new Date(profile.created_at).toLocaleDateString()}</p>
+                </div>
+            `;
+        }
+
+        function populateForm(profile) {
+            document.getElementById('profileEmail').value = profile.email;
+            document.getElementById('profileUserType').value = profile.user_type;
+        }
+
+        // Profile update form handler
+        document.getElementById('profileForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('profileEmail').value;
+            const userType = document.getElementById('profileUserType').value;
+
+            try {
+                const response = await fetch('/api/profile', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, userType })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    showMessage('Profile updated successfully!', 'success');
+                    loadProfile(); // Reload profile data
+                } else {
+                    showMessage(data.error, 'error');
+                }
+            } catch (error) {
+                showMessage('Update failed', 'error');
+            }
+        });
+
+        // Load profile on page load
+        loadProfile();
+    </script>
+</body>
+</html>

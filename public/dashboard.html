@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Together Culture</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="dashboard-container">
+        <nav class="sidebar">
+            <div class="logo-container">
+                <div class="logo">
+                    <div class="logo-icon">🌍</div>
+                    <h2>Together Culture</h2>
+                </div>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="#" onclick="showSection('activities')" class="nav-link active">Activities</a></li>
+                <li><a href="#" onclick="showSection('profile')" class="nav-link">Profile</a></li>
+                <li id="adminNav" style="display: none;"><a href="admin.html" class="nav-link">Admin Panel</a></li>
+                <li><a href="#" onclick="logout()" class="nav-link">Logout</a></li>
+            </ul>
+        </nav>
+
+        <main class="main-dashboard">
+            <header class="dashboard-header">
+                <h1>Welcome, <span id="userWelcome">User</span></h1>
+                <div class="user-info">
+                    <span id="userRole" class="role-badge">Member</span>
+                </div>
+            </header>
+
+            <!-- Activities Section -->
+            <section id="activitiesSection" class="dashboard-section">
+                <div class="section-header">
+                    <h2>Cultural Activities</h2>
+                    <button class="btn-primary" onclick="openAddActivityModal()">Add Activity</button>
+                </div>
+                
+                <div class="activities-grid" id="activitiesGrid">
+                    <!-- Activities will be loaded here -->
+                </div>
+            </section>
+
+            <!-- Profile Section -->
+            <section id="profileSection" class="dashboard-section" style="display: none;">
+                <div class="section-header">
+                    <h2>Your Profile</h2>
+                </div>
+                
+                <div class="profile-card">
+                    <form id="profileForm">
+                        <div class="input-group">
+                            <label for="profileUsername">Username</label>
+                            <input type="text" id="profileUsername" disabled>
+                        </div>
+                        <div class="input-group">
+                            <label for="profileEmail">Email</label>
+                            <input type="email" id="profileEmail" name="email" required>
+                        </div>
+                        <div class="input-group">
+                            <label for="profileFullName">Full Name</label>
+                            <input type="text" id="profileFullName" name="fullName" required>
+                        </div>
+                        <div class="input-group">
+                            <label for="profileRole">Role</label>
+                            <input type="text" id="profileRole" disabled>
+                        </div>
+                        <button type="submit" class="btn-primary">Update Profile</button>
+                    </form>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Add Activity Modal -->
+    <div id="addActivityModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Add New Activity</h3>
+                <span class="close" onclick="closeAddActivityModal()">&times;</span>
+            </div>
+            <form id="addActivityForm">
+                <div class="input-group">
+                    <label for="activityTitle">Title</label>
+                    <input type="text" id="activityTitle" name="title" required>
+                </div>
+                <div class="input-group">
+                    <label for="activityDescription">Description</label>
+                    <textarea id="activityDescription" name="description" rows="3"></textarea>
+                </div>
+                <div class="input-group">
+                    <label for="activityDate">Date</label>
+                    <input type="date" id="activityDate" name="date" required>
+                </div>
+                <div class="input-group">
+                    <label for="activityLocation">Location</label>
+                    <input type="text" id="activityLocation" name="location" required>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn-secondary" onclick="closeAddActivityModal()">Cancel</button>
+                    <button type="submit" class="btn-primary">Add Activity</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Edit Activity Modal -->
+    <div id="editActivityModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Edit Activity</h3>
+                <span class="close" onclick="closeEditActivityModal()">&times;</span>
+            </div>
+            <form id="editActivityForm">
+                <input type="hidden" id="editActivityId">
+                <div class="input-group">
+                    <label for="editActivityTitle">Title</label>
+                    <input type="text" id="editActivityTitle" name="title" required>
+                </div>
+                <div class="input-group">
+                    <label for="editActivityDescription">Description</label>
+                    <textarea id="editActivityDescription" name="description" rows="3"></textarea>
+                </div>
+                <div class="input-group">
+                    <label for="editActivityDate">Date</label>
+                    <input type="date" id="editActivityDate" name="date" required>
+                </div>
+                <div class="input-group">
+                    <label for="editActivityLocation">Location</label>
+                    <input type="text" id="editActivityLocation" name="location" required>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn-secondary" onclick="closeEditActivityModal()">Cancel</button>
+                    <button type="submit" class="btn-primary">Update Activity</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Check authentication on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            checkAuth();
+            loadActivities();
+            loadProfile();
+        });
+    </script>
+    <script src="script.js"></script>
+</body>
+</html>
